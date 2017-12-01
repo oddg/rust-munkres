@@ -1,0 +1,6 @@
+[package]
+name = "munkres"
+version = "0.1.0"
+authors = ["oddg <odegevigney@gmail.com>"]
+
+[dependencies]
