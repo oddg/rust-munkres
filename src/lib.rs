@@ -5,9 +5,9 @@
 ///
 /// ```
 /// let weights = &vec!(
-///     vec!(11, 6, 12),
-///     vec!(12, 4, 6),
-///     vec!(8, 12, 11),
+///     vec!(11,  6, 12),
+///     vec!(12,  4,  6),
+///     vec!( 8, 12, 11),
 /// );
 ///
 /// let mut problem = munkres::Problem::new(weights);
