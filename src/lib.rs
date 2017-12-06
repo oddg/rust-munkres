@@ -33,50 +33,26 @@ struct MinSlack {
     arg: usize,
 }
 
+impl Clone for MinSlack {
+    fn clone(&self) -> MinSlack {
+        MinSlack { value: self.value, arg: self.arg}
+    }
+}
+
 impl<'a> Problem<'a> {
     pub fn new(weights: &Vec<Vec<u32>>) -> Problem {
         let size = weights.len();
-        let mut y_i: Vec<u32> = Vec::with_capacity(size);
-        let mut y_j: Vec<u32> = Vec::with_capacity(size);
-        let mut m_ij: Vec<Option<usize>> = Vec::with_capacity(size);
-        let mut m_ji: Vec<Option<usize>> = Vec::with_capacity(size);
-        let mut min_slack: Vec<MinSlack> = Vec::with_capacity(size);
-        let mut tree_i: Vec<Option<usize>> = Vec::with_capacity(size);
-        let mut tree_j: Vec<Option<usize>> = Vec::with_capacity(size);
-        let tight_edges: Vec<(usize, usize)> = Vec::with_capacity(size);
-
-        // Initialization
-        for i in 0..size {
-            // The matching is empty.
-            m_ij.push(None);
-            m_ji.push(None);
-
-            // There is no alternating tree
-            min_slack.push(MinSlack { value: 0, arg: 0 });
-            tree_i.push(None);
-            tree_j.push(None);
-
-            // Maximize the dual variables of the even vertices.
-            let min = weights[i].iter().skip(1).fold(
-                weights[i][0],
-                |m, &x| if x < m { x } else { m },
-            );
-            y_i.push(min);
-            // Minimize the dual variables of the odd vertices.
-            y_j.push(0);
-        }
-
         Problem {
             size,
             weights,
-            m_ij,
-            m_ji,
-            y_i,
-            y_j,
-            min_slack,
-            tree_i,
-            tree_j,
-            tight_edges,
+            y_i: vec![0; size],
+            y_j: vec![0; size],
+            m_ij: vec![None; size],
+            m_ji: vec![None; size],
+            tree_i: vec![None; size],
+            tree_j: vec![None; size],
+            min_slack: vec![MinSlack{ value: 0, arg: 0 } ;size],
+            tight_edges: Vec::with_capacity(size),
         }
     }
 
@@ -188,8 +164,16 @@ impl<'a> Problem<'a> {
         }
     }
 
-    // Greedily build a matching over the tight edges.
+    // Greedily build a matching.
     fn greedy_algo(&mut self) {
+        // Maximize the dual variables of the even vertices.
+        for i in 0..self.size {
+            self.y_i[i] = self.weights[i].iter().skip(1).fold(
+                self.weights[i][0],
+                |m, &x| if x < m { x } else { m },
+            );
+        }
+
         for i in 0..self.size {
             for j in 0..self.size {
                 if self.slack(i, j) == 0 && self.m_ji[j] == None {
