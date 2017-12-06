@@ -1,3 +1,18 @@
+//! An implementation of the Hungarian algorithm to solve the Assignment Problem.
+//! The worst case complexity is `O(n^3)`.
+
+/// # Examples
+///
+/// ```
+/// let weights = &vec!(
+///     vec!(11, 6, 12),
+///     vec!(12, 4, 6),
+///     vec!(8, 12, 11),
+/// );
+///
+/// let mut problem = munkres::Problem::new(weights);
+/// assert_eq!(problem.solve(), vec!((0,1), (1,2), (2,0)));
+/// ```
 #[derive(Debug)]
 pub struct Problem<'a> {
     size: usize,
@@ -25,41 +40,30 @@ impl<'a> Problem<'a> {
         let mut y_j: Vec<u32> = Vec::with_capacity(size);
         let mut m_ij: Vec<Option<usize>> = Vec::with_capacity(size);
         let mut m_ji: Vec<Option<usize>> = Vec::with_capacity(size);
-        // Is there a cleaner way?
         let mut min_slack: Vec<MinSlack> = Vec::with_capacity(size);
         let mut tree_i: Vec<Option<usize>> = Vec::with_capacity(size);
         let mut tree_j: Vec<Option<usize>> = Vec::with_capacity(size);
         let tight_edges: Vec<(usize, usize)> = Vec::with_capacity(size);
 
-        // Initialize an empty matching and sets the columns' dual variables to 0.
-        for _ in 0..size {
+        // Initialization
+        for i in 0..size {
+            // The matching is empty.
             m_ij.push(None);
             m_ji.push(None);
-            y_j.push(0);
 
-            min_slack.push(MinSlack {value: 0,  arg:0});
+            // There is no alternating tree
+            min_slack.push(MinSlack { value: 0, arg: 0 });
             tree_i.push(None);
             tree_j.push(None);
-        }
 
-        // Mazimize the rows' dual variables.
-        for i in 0..size {
+            // Maximize the dual variables of the even vertices.
             let min = weights[i].iter().skip(1).fold(
                 weights[i][0],
                 |m, &x| if x < m { x } else { m },
             );
             y_i.push(min);
-        }
-
-        // Greedily build a matching of tight edges.
-        for i in 0..size {
-            for j in 0..size {
-                if weights[i][j] - y_i[i] + y_j[j] == 0 && m_ji[j] == None {
-                    m_ij[i] = Some(j);
-                    m_ji[j] = Some(i);
-                    break;
-                }
-            }
+            // Minimize the dual variables of the odd vertices.
+            y_j.push(0);
         }
 
         Problem {
@@ -74,6 +78,12 @@ impl<'a> Problem<'a> {
             tree_j,
             tight_edges,
         }
+    }
+
+    // Return the slack in the following inequality:
+    //    weights[i][j] + y_j[j] >= y_i[i]
+    fn slack(&self, i: usize, j: usize) -> u32 {
+        self.weights[i][j] + self.y_j[j] - self.y_i[i]
     }
 
     // Return a row not covered by the matching.
@@ -101,7 +111,7 @@ impl<'a> Problem<'a> {
             // Add the edge to the tree if it expends it.
             if self.tree_j[j] == None {
                 self.tree_j[j] = Some(i);
-                return Some(j)
+                return Some(j);
             }
         }
         None
@@ -139,14 +149,13 @@ impl<'a> Problem<'a> {
             .collect();
 
         // Find the smallest min_slack to the odd vertices not covered by the tree
-        let delta: u32 = odd_out.iter()
-            .skip(1)
-            .fold(
-                self.min_slack[odd_out[0]].value,
-                |m, &j| {
-                    let s = self.min_slack[j].value;
-                    if s < m { s } else { m }
-                });
+        let delta: u32 = odd_out.iter().skip(1).fold(
+            self.min_slack[odd_out[0]].value,
+            |m, &j| {
+                let s = self.min_slack[j].value;
+                if s < m { s } else { m }
+            },
+        );
 
         // Update the dual variables
         for i in 0..self.size {
@@ -169,10 +178,6 @@ impl<'a> Problem<'a> {
         }
     }
 
-    fn slack(&self, i: usize, j: usize) -> u32 {
-        self.weights[i][j] + self.y_j[j] - self.y_i[i]
-    }
-
     fn alternate_path(&mut self, j: usize) {
         let mut odd = Some(j);
         while let Some(j) = odd {
@@ -183,7 +188,22 @@ impl<'a> Problem<'a> {
         }
     }
 
+    // Greedily build a matching over the tight edges.
+    fn greedy_algo(&mut self) {
+        for i in 0..self.size {
+            for j in 0..self.size {
+                if self.slack(i, j) == 0 && self.m_ji[j] == None {
+                    self.m_ij[i] = Some(j);
+                    self.m_ji[j] = Some(i);
+                    break;
+                }
+            }
+        }
+    }
+
     pub fn solve(&mut self) -> Vec<(usize, usize)> {
+        self.greedy_algo();
+
         // As long as there is an even vertex not covered by the matching
         while let Some(r) = self.free_even_vertex() {
             // Start an alternating tree from that vertex
@@ -214,8 +234,10 @@ impl<'a> Problem<'a> {
             }
         }
 
-        self.m_ij.iter().enumerate()
-            .map(|(i ,&j)| (i, j.unwrap()))
+        self.m_ij
+            .iter()
+            .enumerate()
+            .map(|(i, &j)| (i, j.unwrap()))
             .collect::<Vec<(usize, usize)>>()
 
     }
